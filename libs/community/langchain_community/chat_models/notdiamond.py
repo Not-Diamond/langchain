@@ -79,30 +79,6 @@ def _create_retry_decorator(
         error_types=errors, max_retries=llm.max_retries, run_manager=run_manager
     )
 
-def _convert_dict_to_message(_dict: Mapping[str, Any]) -> BaseMessage:
-    role = _dict["role"]
-    if role == "user":
-        return HumanMessage(content=_dict["content"])
-    elif role == "assistant":
-        # Fix for azure
-        # Also OpenAI returns None for tool invocations
-        content = _dict.get("content", "") or ""
-
-        additional_kwargs = {}
-        if _dict.get("function_call"):
-            additional_kwargs["function_call"] = dict(_dict["function_call"])
-
-        if _dict.get("tool_calls"):
-            additional_kwargs["tool_calls"] = _dict["tool_calls"]
-
-        return AIMessage(content=content, additional_kwargs=additional_kwargs)
-    elif role == "system":
-        return SystemMessage(content=_dict["content"])
-    elif role == "function":
-        return FunctionMessage(content=_dict["content"], name=_dict["name"])
-    else:
-        return ChatMessage(content=_dict["content"], role=role)
-
 def _convert_message_to_dict(message: BaseMessage) -> dict:
     if isinstance(message, ChatMessage):
         message_dict = {"role": message.role, "content": message.content}
@@ -159,6 +135,8 @@ def completion_with_retry(
 
     @retry_decorator
     def _completion_with_retry(**kwargs: Any) -> Any:
+        if "stream" in kwargs:
+            return llm.client.chat.completions.stream(**kwargs)
         return llm.client.chat.completions.create(**kwargs)
 
     return _completion_with_retry(**kwargs)
@@ -194,11 +172,13 @@ class ChatNotDiamond(BaseChatModel):
     # API keys
     notdiamond_api_key: Optional[str] = None
     openai_api_key: Optional[str] = None
-    azure_api_key: Optional[str] = None
     anthropic_api_key: Optional[str] = None
+    google_api_key: Optional[str] = None
+    mistral_api_key: Optional[str] = None
     replicate_api_key: Optional[str] = None
+    together_api_key: Optional[str] = None
+    perplexity_api_key: Optional[str] = None
     cohere_api_key: Optional[str] = None
-    openrouter_api_key: Optional[str] = None
 
     # other parameters like temperature, top_p, top_k, n go in model_kwargs
     streaming: bool = False
@@ -226,20 +206,23 @@ class ChatNotDiamond(BaseChatModel):
         values["anthropic_api_key"] = get_from_dict_or_env(
             values, "anthropic_api_key", "ANTHROPIC_API_KEY", default=""
         )
-        values["replicate_api_key"] = get_from_dict_or_env(
-            values, "replicate_api_key", "REPLICATE_API_KEY", default=""
-        )
-        values["cohere_api_key"] = get_from_dict_or_env(
-            values, "cohere_api_key", "COHERE_API_KEY", default=""
-        )
-        values["perplexity_api_key"] = get_from_dict_or_env(
-            values, "perplexity_api_key", "PERPLEXITYAI_API_KEY", default=""
-        )
-        values["together_ai_api_key"] = get_from_dict_or_env(
-            values, "together_ai_api_key", "TOGETHERAI_API_KEY", default=""
+        values["google_api_key"] = get_from_dict_or_env(
+            values, "google_api_key", "GOOGLE_API_KEY", default=""
         )
         values["mistral_api_key"] = get_from_dict_or_env(
             values, "mistral_api_key", "MISTRAL_API_KEY", default=""
+        )
+        values["replicate_api_key"] = get_from_dict_or_env(
+            values, "replicate_api_key", "REPLICATE_API_KEY", default=""
+        )
+        values["together_api_key"] = get_from_dict_or_env(
+            values, "together_api_key", "TOGETHER_API_KEY", default=""
+        )
+        values["perplexity_api_key"] = get_from_dict_or_env(
+            values, "perplexity_api_key", "PPLX_API_KEY", default=""
+        )
+        values["cohere_api_key"] = get_from_dict_or_env(
+            values, "cohere_api_key", "COHERE_API_KEY", default=""
         )
         notdiamond_client = NotDiamond(llm_configs=values["llm_configs"], api_key=values["notdiamond_api_key"])
         values["client"] = notdiamond_client
@@ -282,9 +265,6 @@ class ChatNotDiamond(BaseChatModel):
         **kwargs: Any,
     ) -> ChatResult:
         message_dicts, params = self._create_message_dicts(messages, stop)
-        print("message_dicts", message_dicts)
-        print("params", params)
-        print("kwargs", kwargs)
         should_stream = stream if stream is not None else self.streaming
 
         if should_stream:
@@ -305,11 +285,7 @@ class ChatNotDiamond(BaseChatModel):
             'session_id': session_id,
             'provider': provider
         }
-        print("result", result)
-        # print("type of response:", type(response))
-        # return ChatResult(generations=['response'], llm_output={'session_id': session_id, 'provider': provider.model})
         return self._create_chat_result(result)
-        # return response
 
     async def _agenerate(
         self,
@@ -336,11 +312,11 @@ class ChatNotDiamond(BaseChatModel):
             run_manager=run_manager, 
             **params
         )
-        # result = {
-        #     'response': response,
-        #     'session_id': session_id,
-        #     'provider': provider
-        # }
+        result = {
+            'response': response,
+            'session_id': session_id,
+            'provider': provider
+        }
         return self._create_chat_result(result)
 
     def _stream(
@@ -353,19 +329,15 @@ class ChatNotDiamond(BaseChatModel):
         message_dicts, params = self._create_message_dicts(messages, stop)
         params = {**params, **kwargs, "stream": True}
 
-        default_chunk_class = AIMessageChunk
-        generator_response, session_id, provider = completion_with_retry(
+        generator_response = completion_with_retry(
             self,
             messages=message_dicts,
             run_manager=run_manager,
             **params,
         )
         for chunk in generator_response:
-            if len(chunk["choices"]) == 0:
+            if not chunk.content:
                 continue
-            delta = chunk["choices"][0]["delta"]
-            chunk = _convert_delta_to_message_chunk(delta, default_chunk_class)
-            default_chunk_class = chunk.__class__
             cg_chunk = ChatGenerationChunk(message=chunk)
             if run_manager:
                 run_manager.on_llm_new_token(chunk.content, chunk=cg_chunk)
@@ -381,46 +353,19 @@ class ChatNotDiamond(BaseChatModel):
         message_dicts, params = self._create_message_dicts(messages, stop)
         params = {**params, **kwargs, "stream": True}
 
-        generator_response, session_id, provider = completion_with_retry(
+        generator_response = completion_with_retry(
             self,
             messages=message_dicts,
-            models_priority_list=self.models_priority_list,
             run_manager=run_manager,
             **params,
         )
         async for chunk in await generator_response:
-            if len(chunk["choices"]) == 0:
+            if not chunk.content:
                 continue
-            delta = chunk["choices"][0]["delta"]
-            chunk = _convert_delta_to_message_chunk(delta, default_chunk_class)
-            default_chunk_class = chunk.__class__
             cg_chunk = ChatGenerationChunk(message=chunk)
             if run_manager:
                 await run_manager.on_llm_new_token(chunk.content, chunk=cg_chunk)
             yield cg_chunk
-
-    # def _create_chat_result(self, response: Mapping[str, Any]) -> ChatResult:
-    #     generations = []
-    #     for res in response['response']:
-    #         message = _convert_dict_to_message(res)
-    #         gen = ChatGeneration(
-    #             message=message,
-    #             generation_info=dict(finish_reason=res.response_metadata.get("finish_reason")),
-    #         )
-    #         generations.append(gen)
-    #     input_tokens = response.usage_metadata.get("input_tokens", {})
-    #     output_tokens = response.usage_metadata.get("output_tokens", {})
-    #     total_tokens = response.usage_metadata.get("total_tokens", {})
-    #     session_id = response['session_id']
-    #     provider = response['provider']
-    #     llm_output = {
-    #         "session_id": session_id,
-    #         "recommended_model": provider.model,
-    #         "input_tokens": input_tokens,
-    #         "output_tokens": output_tokens,
-    #         "total_tokens": total_tokens,
-    #     }
-    #     return ChatResult(generations=generations, llm_output=llm_output)
 
     def _create_chat_result(self, response: Mapping[str, Any]) -> ChatResult:
         res = response['response']
