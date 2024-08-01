@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 
 
 class ChatNotDiamondException(Exception):
-    """Error with the `Not Diamond` library"""
+    """Error with the `notdiamond` library"""
 
 
 def _create_retry_decorator(
@@ -73,7 +73,6 @@ def _create_retry_decorator(
         exceptions.MissingApiKey,
         exceptions.MissingLLMConfigs,
         exceptions.ApiError,
-        exceptions.CreateUnavailableError
     ]
     return create_base_retry_decorator(
         error_types=errors, max_retries=llm.max_retries, run_manager=run_manager
@@ -84,18 +83,12 @@ def _convert_message_to_dict(message: BaseMessage) -> dict:
         message_dict = {"role": message.role, "content": message.content}
     elif isinstance(message, HumanMessage):
         message_dict = {"role": "user", "content": message.content}
-    elif isinstance(message, AIMessage):
+    elif isinstance(message, AIMessage) or isinstance(message, FunctionMessage):
         message_dict = {"role": "assistant", "content": message.content}
         if "function_call" in message.additional_kwargs:
             message_dict["function_call"] = message.additional_kwargs["function_call"]
     elif isinstance(message, SystemMessage):
         message_dict = {"role": "system", "content": message.content}
-    elif isinstance(message, FunctionMessage):
-        message_dict = {
-            "role": "function",
-            "content": message.content,
-            "name": message.name,
-        }
     else:
         raise ValueError(f"Got unknown type {message}")
     if "name" in message.additional_kwargs:
@@ -106,7 +99,7 @@ def _convert_delta_to_message_chunk(
     _dict: Mapping[str, Any], default_class: Type[BaseMessageChunk]
 ) -> BaseMessageChunk:
     role = _dict.get("role")
-    content = _dict.get("content") or ""
+    content = _dict.get("content", "")
     if _dict.get("function_call"):
         additional_kwargs = {"function_call": dict(_dict["function_call"])}
     else:
@@ -151,6 +144,8 @@ async def acompletion_with_retry(
 
     @retry_decorator
     async def _completion_with_retry(**kwargs: Any) -> Any:
+        if "stream" in kwargs:
+            return await llm.client.chat.completions.astream(**kwargs)
         return await llm.client.chat.completions.acreate(**kwargs)
 
     return await _completion_with_retry(**kwargs)
@@ -167,7 +162,8 @@ class ChatNotDiamond(BaseChatModel):
     hash_content: bool = False
     tradeoff: Optional[str] = None
     preference_id: Optional[str] = None
-    tools: Optional[Sequence[Union[Dict[str, Any], Callable]]] = None
+    response_model: Optional[Type[BaseModel]] = None
+    timeout: int = 5
     
     # API keys
     notdiamond_api_key: Optional[str] = None
@@ -239,35 +235,26 @@ class ChatNotDiamond(BaseChatModel):
             "hash_content": self.hash_content,
             "tradeoff": self.tradeoff,
             "preference_id": self.preference_id,
-            # "tools": self.tools,
+            "response_model": self.response_model,
+            "timeout": self.timeout,
             **self.model_kwargs,
         }
 
     @property
-    def _identifying_params(self) -> Dict[str, Any]:
-        """Get the identifying parameters."""
-        return {
-            "llm_configs": self.llm_configs,
-            "tradeoff": self.tradeoff,
-            "tools": self.tools,
-        }
-
-    @property
     def _llm_type(self) -> str:
-        return "notdiamond-chat"
+        return "notdiamond"
 
     def _generate(
         self,
         messages: List[BaseMessage],
         stop: Optional[List[str]] = None,
         run_manager: Optional[CallbackManagerForLLMRun] = None,
-        stream: Optional[bool] = None,
+        stream: Optional[bool] = False,
         **kwargs: Any,
     ) -> ChatResult:
         message_dicts, params = self._create_message_dicts(messages, stop)
-        should_stream = stream if stream is not None else self.streaming
 
-        if should_stream:
+        if stream or self.streaming:
             stream_iter = self._stream(
                 messages, stop=stop, run_manager=run_manager, **kwargs
             )
@@ -292,13 +279,12 @@ class ChatNotDiamond(BaseChatModel):
         messages: List[BaseMessage],
         stop: Optional[List[str]] = None,
         run_manager: Optional[AsyncCallbackManagerForLLMRun] = None,
-        stream: Optional[bool] = None,
+        stream: Optional[bool] = False,
         **kwargs: Any,
     ) -> ChatResult:
         message_dicts, params = self._create_message_dicts(messages, stop)
-        should_stream = stream if stream is not None else self.streaming
 
-        if should_stream:
+        if stream or self.streaming:
             stream_iter = self._astream(
                 messages=messages, stop=stop, run_manager=run_manager, **kwargs
             )
@@ -353,7 +339,7 @@ class ChatNotDiamond(BaseChatModel):
         message_dicts, params = self._create_message_dicts(messages, stop)
         params = {**params, **kwargs, "stream": True}
 
-        generator_response = completion_with_retry(
+        generator_response = acompletion_with_retry(
             self,
             messages=message_dicts,
             run_manager=run_manager,
@@ -368,16 +354,16 @@ class ChatNotDiamond(BaseChatModel):
             yield cg_chunk
 
     def _create_chat_result(self, response: Mapping[str, Any]) -> ChatResult:
-        res = response['response']
+        res = response.get("response")
         gen = ChatGeneration(
             message=AIMessage(content=res.content),
             generation_info=dict(finish_reason=res.response_metadata.get("finish_reason")),
         )
-        input_tokens = res.usage_metadata.get("input_tokens", {})
-        output_tokens = res.usage_metadata.get("output_tokens", {})
-        total_tokens = res.usage_metadata.get("total_tokens", {})
-        session_id = response['session_id']
-        provider = response['provider']
+        input_tokens = res.usage_metadata.get("input_tokens")
+        output_tokens = res.usage_metadata.get("output_tokens")
+        total_tokens = res.usage_metadata.get("total_tokens")
+        session_id = response.get("session_id")
+        provider = response.get("provider")
         llm_output = {
             "session_id": session_id,
             "model_name": f"{provider.provider}/{provider.model}",
@@ -391,7 +377,7 @@ class ChatNotDiamond(BaseChatModel):
         self, messages: List[BaseMessage], stop: Optional[List[str]]
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         params = self._default_params
-        if stop is not None:
+        if not stop:
             if "stop" in params:
                 raise ValueError("`stop` found in both the input and default params.")
             params["stop"] = stop
