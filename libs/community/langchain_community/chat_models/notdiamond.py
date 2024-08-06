@@ -329,30 +329,6 @@ class ChatNotDiamond(BaseChatModel):
                 run_manager.on_llm_new_token(chunk.content, chunk=cg_chunk)
             yield cg_chunk
 
-    async def _astream(
-        self,
-        messages: List[BaseMessage],
-        stop: Optional[List[str]] = None,
-        run_manager: Optional[AsyncCallbackManagerForLLMRun] = None,
-        **kwargs: Any,
-    ) -> AsyncIterator[ChatGenerationChunk]:
-        message_dicts, params = self._create_message_dicts(messages, stop)
-        params = {**params, **kwargs, "stream": True}
-
-        generator_response = acompletion_with_retry(
-            self,
-            messages=message_dicts,
-            run_manager=run_manager,
-            **params,
-        )
-        async for chunk in await generator_response:
-            if not chunk.content:
-                continue
-            cg_chunk = ChatGenerationChunk(message=chunk)
-            if run_manager:
-                await run_manager.on_llm_new_token(chunk.content, chunk=cg_chunk)
-            yield cg_chunk
-
     def _create_chat_result(self, response: Mapping[str, Any]) -> ChatResult:
         res = response.get("response")
         gen = ChatGeneration(

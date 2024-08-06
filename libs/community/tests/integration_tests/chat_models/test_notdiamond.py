@@ -22,10 +22,9 @@ def test_notdiamond_call() -> None:
 
 def test_notdiamond_call_incorrect_model() -> None:
     """Test invalid modelName"""
-    chat = ChatNotDiamond(llm_configs=["openai/gpt-4.5-turbo"])
     message = HumanMessage(content="Hello World")
     with pytest.raises(Exception):
-        chat.invoke([message])
+        chat = ChatNotDiamond(llm_configs=["openai/gpt-0"])
 
 def test_notdiamond_generate() -> None:
     """Test generate method of anthropic."""
@@ -47,7 +46,6 @@ def test_notdiamond_streaming() -> None:
     response = chat.invoke([message])
     assert isinstance(response, AIMessage)
     assert isinstance(response.content, str)
-
 
 def test_notdiamond_streaming_callback() -> None:
     """Test that streaming correctly invokes on_llm_new_token callback."""
@@ -77,11 +75,3 @@ async def test_async_notdiamond_generate() -> None:
         assert isinstance(response.text, str)
         assert response.text == response.message.content
     assert chat_messages == messages_copy
-
-async def test_async_chat_notdiamond_streaming() -> None:
-    """Test streaming tokens from anthropic."""
-    chat = ChatNotDiamond(llm_configs=["openai/gpt-3.5-turbo"], streaming=True)
-    message = HumanMessage(content="Hello")
-    async for response in chat.astream([message]):
-        assert isinstance(response, AIMessage)
-        assert isinstance(response.content, str)
