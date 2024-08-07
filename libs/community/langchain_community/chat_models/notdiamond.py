@@ -78,6 +78,7 @@ def _create_retry_decorator(
         error_types=errors, max_retries=llm.max_retries, run_manager=run_manager
     )
 
+
 def _convert_message_to_dict(message: BaseMessage) -> dict:
     if isinstance(message, ChatMessage):
         message_dict = {"role": message.role, "content": message.content}
@@ -94,6 +95,7 @@ def _convert_message_to_dict(message: BaseMessage) -> dict:
     if "name" in message.additional_kwargs:
         message_dict["name"] = message.additional_kwargs["name"]
     return message_dict
+
 
 def _convert_delta_to_message_chunk(
     _dict: Mapping[str, Any], default_class: Type[BaseMessageChunk]
@@ -117,7 +119,8 @@ def _convert_delta_to_message_chunk(
         return ChatMessageChunk(content=content, role=role)  # type: ignore[arg-type]
     else:
         return default_class(content=content)  # type: ignore[call-arg]
-    
+
+
 def completion_with_retry(
     llm: ChatNotDiamond,
     run_manager: Optional[CallbackManagerForLLMRun] = None,
@@ -133,6 +136,7 @@ def completion_with_retry(
         return llm.client.chat.completions.create(**kwargs)
 
     return _completion_with_retry(**kwargs)
+
 
 async def acompletion_with_retry(
     llm: ChatNotDiamond,
@@ -150,6 +154,7 @@ async def acompletion_with_retry(
 
     return await _completion_with_retry(**kwargs)
 
+
 class ChatNotDiamond(BaseChatModel):
     """Chat model that uses the Not Diamond SDK."""
 
@@ -164,7 +169,7 @@ class ChatNotDiamond(BaseChatModel):
     preference_id: Optional[str] = None
     response_model: Optional[Type[BaseModel]] = None
     timeout: int = 5
-    
+
     # API keys
     notdiamond_api_key: Optional[str] = None
     openai_api_key: Optional[str] = None
@@ -192,7 +197,7 @@ class ChatNotDiamond(BaseChatModel):
                 "Could not import notdiamond python package. "
                 "Please install it with `pip install notdiamond[create]`"
             )
-        
+
         values["notdiamond_api_key"] = get_from_dict_or_env(
             values, "notdiamond_api_key", "NOTDIAMOND_API_KEY", default=""
         )
@@ -220,10 +225,12 @@ class ChatNotDiamond(BaseChatModel):
         values["cohere_api_key"] = get_from_dict_or_env(
             values, "cohere_api_key", "COHERE_API_KEY", default=""
         )
-        notdiamond_client = NotDiamond(llm_configs=values["llm_configs"], api_key=values["notdiamond_api_key"])
+        notdiamond_client = NotDiamond(
+            llm_configs=values["llm_configs"], api_key=values["notdiamond_api_key"]
+        )
         values["client"] = notdiamond_client
         return values
-    
+
     @property
     def _default_params(self) -> Dict[str, Any]:
         """Get the default parameters for calling Not Diamond's API."""
@@ -259,19 +266,12 @@ class ChatNotDiamond(BaseChatModel):
                 messages, stop=stop, run_manager=run_manager, **kwargs
             )
             return generate_from_stream(stream_iter)
-        
+
         params = {**params, **kwargs}
         response, session_id, provider = completion_with_retry(
-            self,
-            messages=message_dicts,
-            run_manager=run_manager, 
-            **params
+            self, messages=message_dicts, run_manager=run_manager, **params
         )
-        result = {
-            'response': response,
-            'session_id': session_id,
-            'provider': provider
-        }
+        result = {"response": response, "session_id": session_id, "provider": provider}
         return self._create_chat_result(result)
 
     async def _agenerate(
@@ -291,18 +291,11 @@ class ChatNotDiamond(BaseChatModel):
             return await agenerate_from_stream(stream_iter)
 
         params = {**params, **kwargs}
-        
+
         response, session_id, provider = await acompletion_with_retry(
-            self,
-            messages=message_dicts,
-            run_manager=run_manager, 
-            **params
+            self, messages=message_dicts, run_manager=run_manager, **params
         )
-        result = {
-            'response': response,
-            'session_id': session_id,
-            'provider': provider
-        }
+        result = {"response": response, "session_id": session_id, "provider": provider}
         return self._create_chat_result(result)
 
     def _stream(
@@ -333,7 +326,9 @@ class ChatNotDiamond(BaseChatModel):
         res = response.get("response")
         gen = ChatGeneration(
             message=AIMessage(content=res.content),
-            generation_info=dict(finish_reason=res.response_metadata.get("finish_reason")),
+            generation_info=dict(
+                finish_reason=res.response_metadata.get("finish_reason")
+            ),
         )
         input_tokens = res.usage_metadata.get("input_tokens")
         output_tokens = res.usage_metadata.get("output_tokens")
@@ -359,7 +354,7 @@ class ChatNotDiamond(BaseChatModel):
             params["stop"] = stop
         message_dicts = [_convert_message_to_dict(m) for m in messages]
         return message_dicts, params
-    
+
     def bind_tools(
         self,
         tools: Sequence[Union[Dict[str, Any], Type[BaseModel], Callable, BaseTool]],

@@ -3,7 +3,6 @@
 from typing import List
 
 import pytest
-
 from langchain_core.callbacks import CallbackManager
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.outputs import ChatGeneration, LLMResult
@@ -20,11 +19,13 @@ def test_notdiamond_call() -> None:
     assert isinstance(response, AIMessage)
     assert isinstance(response.content, str)
 
+
 def test_notdiamond_call_incorrect_model() -> None:
     """Test invalid modelName"""
     message = HumanMessage(content="Hello World")
     with pytest.raises(Exception):
         chat = ChatNotDiamond(llm_configs=["openai/gpt-0"])
+
 
 def test_notdiamond_generate() -> None:
     """Test generate method of anthropic."""
@@ -39,6 +40,7 @@ def test_notdiamond_generate() -> None:
         assert isinstance(response.text, str)
         assert response.text == response.message.content
 
+
 def test_notdiamond_streaming() -> None:
     """Test streaming tokens from anthropic."""
     chat = ChatNotDiamond(llm_configs=["openai/gpt-3.5-turbo"], streaming=True)
@@ -46,6 +48,7 @@ def test_notdiamond_streaming() -> None:
     response = chat.invoke([message])
     assert isinstance(response, AIMessage)
     assert isinstance(response.content, str)
+
 
 def test_notdiamond_streaming_callback() -> None:
     """Test that streaming correctly invokes on_llm_new_token callback."""
@@ -60,6 +63,7 @@ def test_notdiamond_streaming_callback() -> None:
     message = HumanMessage(content="Write me a sentence with 10 words.")
     chat.invoke([message])
     assert callback_handler.llm_streams > 1
+
 
 async def test_async_notdiamond_generate() -> None:
     """Test async generation."""
