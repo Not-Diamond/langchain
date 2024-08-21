@@ -122,9 +122,6 @@ if TYPE_CHECKING:
     from langchain_community.chat_models.mlx import (
         ChatMLX,
     )
-    from langchain_community.chat_models.notdiamond import (
-        ChatNotDiamond,
-    )
     from langchain_community.chat_models.oci_generative_ai import (
         ChatOCIGenAI,  # noqa: F401
     )
@@ -204,7 +201,6 @@ __all__ = [
     "ChatMLflowAIGateway",
     "ChatMaritalk",
     "ChatMlflow",
-    "ChatNotDiamond",
     "ChatOCIGenAI",
     "ChatOllama",
     "ChatOpenAI",
@@ -261,7 +257,6 @@ _module_lookup = {
     "ChatMLX": "langchain_community.chat_models.mlx",
     "ChatMaritalk": "langchain_community.chat_models.maritalk",
     "ChatMlflow": "langchain_community.chat_models.mlflow",
-    "ChatNotDiamond": "langchain_community.chat_models.notdiamond",
     "ChatOctoAI": "langchain_community.chat_models.octoai",
     "ChatOCIGenAI": "langchain_community.chat_models.oci_generative_ai",
     "ChatOllama": "langchain_community.chat_models.ollama",
