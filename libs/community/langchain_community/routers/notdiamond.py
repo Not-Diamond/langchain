@@ -1,14 +1,14 @@
 import os
-from typing import List, Dict, Sequence, AsyncIterator
-
-from langchain.chat_models.base import init_chat_model
-from langchain_community.adapters.openai import convert_message_to_dict
-from langchain_core.prompt_values import PromptValue, StringPromptValue, ChatPromptValue
-from langchain_core.language_models import LanguageModelInput
-from langchain_core.messages.utils import convert_to_messages
-from langchain_core.runnables.base import Runnable
+from typing import AsyncIterator, Dict, List, Sequence
 
 import notdiamond as nd
+from langchain.chat_models.base import init_chat_model
+from langchain_core.language_models import LanguageModelInput
+from langchain_core.messages.utils import convert_to_messages
+from langchain_core.prompt_values import ChatPromptValue, PromptValue, StringPromptValue
+from langchain_core.runnables import Runnable, RunnableConfig
+
+from langchain_community.adapters.openai import convert_message_to_dict
 
 
 class NotDiamondRunnable(Runnable[LanguageModelInput, str]):
@@ -18,26 +18,28 @@ class NotDiamondRunnable(Runnable[LanguageModelInput, str]):
     """
 
     llm_configs: List[nd.LLMConfig | str]
-    api_key: str
+    api_key: str | None = os.getenv("NOTDIAMOND_API_KEY")
     client: nd.NotDiamond
 
     def __init__(
         self,
         llm_configs: List[nd.LLMConfig | str],
-        api_key: str = os.getenv("NOTDIAMOND_API_KEY"),
-        default_model: str = None,
+        api_key: str | None,
+        default_model: str | None = None,
     ):
+        if api_key:
+            self.api_key = api_key
         self.client = nd.NotDiamond(
-            llm_configs=llm_configs, api_key=api_key, default=default_model
+            llm_configs=llm_configs, api_key=self.api_key, default=default_model
         )
 
-    def _model_select(self, input: List[LanguageModelInput]) -> str:
+    def _model_select(self, input: LanguageModelInput) -> str:
         messages = _convert_input_to_message_dicts(input)
         _, provider = self.client.chat.completions.model_select(messages=messages)
         provider_str = _nd_provider_to_langchain_provider(str(provider))
         return provider_str
 
-    async def _amodel_select(self, input: List[LanguageModelInput]) -> str:
+    async def _amodel_select(self, input: LanguageModelInput) -> str:
         messages = _convert_input_to_message_dicts(input)
         _, provider = await self.client.chat.completions.amodel_select(
             messages=messages
@@ -45,7 +47,7 @@ class NotDiamondRunnable(Runnable[LanguageModelInput, str]):
         provider_str = _nd_provider_to_langchain_provider(str(provider))
         return provider_str
 
-    def stream(self, input: LanguageModelInput) -> str:
+    def stream(self, input: LanguageModelInput, _: RunnableConfig | None = None) -> str:
         return self._model_select(input)
 
     def invoke(self, input: LanguageModelInput) -> str:
@@ -54,13 +56,13 @@ class NotDiamondRunnable(Runnable[LanguageModelInput, str]):
     def batch(self, inputs: List[LanguageModelInput]) -> List[str]:
         return [self._model_select(input) for input in inputs]
 
-    async def astream(self, input: LanguageModelInput) -> AsyncIterator[str]:
+    async def astream(self, input: LanguageModelInput, _: RunnableConfig | None = None) -> AsyncIterator[str]:
         return await self._amodel_select(input)
 
     async def ainvoke(self, input: LanguageModelInput) -> str:
         return await self._amodel_select(input)
 
-    async def abatch(self, inputs: List[LanguageModelInput]) -> List[str]:
+    async def abatch(self, inputs: List[LanguageModelInput], _: RunnableConfig | List[RunnableConfig] | None = None) -> List[str]:
         return [await self._amodel_select(input) for input in inputs]
 
 
@@ -68,9 +70,9 @@ class NotDiamondRoutedRunnable(Runnable[LanguageModelInput, str]):
     def __init__(
         self,
         llm_configs: List[nd.LLMConfig | str],
-        api_key: str = os.getenv("NOTDIAMOND_API_KEY"),
-        default_model: str = None,
-        configurable_fields: List[str] = None,
+        api_key: str | None = os.getenv("NOTDIAMOND_API_KEY"),
+        default_model: str | None = None,
+        configurable_fields: List[str] | None = None,
         *args,
         **kwargs,
     ):
@@ -87,18 +89,18 @@ class NotDiamondRoutedRunnable(Runnable[LanguageModelInput, str]):
             **kwargs,
         )
 
-    def stream(self, input: LanguageModelInput, config: dict = None) -> str:
+    def stream(self, input: LanguageModelInput, config: RunnableConfig | None = None) -> str:
         provider_str = self._ndrunnable._model_select(input)
         _config = self._build_model_config(provider_str, config)
         return self._configurable_model.stream(input, config=_config)
 
-    def invoke(self, input: LanguageModelInput, config: dict = None) -> str:
+    def invoke(self, input: LanguageModelInput, config: RunnableConfig | None = None) -> str:
         provider_str = self._ndrunnable._model_select(input)
         _config = self._build_model_config(provider_str, config)
         return self._configurable_model.invoke(input, config=_config)
 
     def batch(
-        self, inputs: List[LanguageModelInput], config: dict | List[dict] = None
+        self, inputs: List[LanguageModelInput], config: RunnableConfig | List[RunnableConfig] | None = None
     ) -> List[str]:
         config = config or {}
 
@@ -113,23 +115,27 @@ class NotDiamondRoutedRunnable(Runnable[LanguageModelInput, str]):
 
         return self._configurable_model.batch(inputs, config=_configs)
 
-    async def astream(self, input: LanguageModelInput, config: dict = None) -> AsyncIterator[str]:
+    async def astream(
+        self, input: LanguageModelInput, config: RunnableConfig | None = None
+    ) -> AsyncIterator[str]:
         provider_str = await self._ndrunnable._amodel_select(input)
         _config = self._build_model_config(provider_str, config)
         async for chunk in self._configurable_model.astream(input, config=_config):
             yield chunk
 
-    async def ainvoke(self, input: LanguageModelInput, config: dict = None) -> str:
+    async def ainvoke(self, input: LanguageModelInput, config: RunnableConfig | None = None) -> str:
         provider_str = await self._ndrunnable._amodel_select(input)
         _config = self._build_model_config(provider_str, config)
         return await self._configurable_model.ainvoke(input, config=_config)
 
     async def abatch(
-        self, inputs: List[LanguageModelInput], config: dict | List[dict] = None
+        self, inputs: List[LanguageModelInput], config: RunnableConfig | List[RunnableConfig] | None = None
     ) -> List[str]:
         config = config or {}
 
-        provider_strs = [await self._ndrunnable._amodel_select(input) for input in inputs]
+        provider_strs = [
+            await self._ndrunnable._amodel_select(input) for input in inputs
+        ]
         if isinstance(config, dict):
             _configs = [self._build_model_config(ps, config) for ps in provider_strs]
         else:
@@ -140,7 +146,7 @@ class NotDiamondRoutedRunnable(Runnable[LanguageModelInput, str]):
 
         return await self._configurable_model.abatch(inputs, config=_configs)
 
-    def _build_model_config(self, provider_str: str, config: dict = None) -> dict:
+    def _build_model_config(self, provider_str: str, config: RunnableConfig | None = None) -> dict:
         config = config or {}
 
         _nd_llm_config = nd.LLMConfig.from_string(
