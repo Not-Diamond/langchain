@@ -1,11 +1,12 @@
 import os
 from typing import List, Any, Dict, Sequence
 
+from langchain.chat_models.base import _SUPPORTED_PROVIDERS
 from langchain_community.adapters.openai import convert_message_to_dict
 from langchain_core.prompt_values import PromptValue, StringPromptValue, ChatPromptValue
 from langchain_core.language_models import LanguageModelInput
 from langchain_core.messages.utils import convert_to_messages
-from langchain_core.runnables.base import Runnable, Output
+from langchain_core.runnables.base import Runnable
 
 from notdiamond import NotDiamond, LLMConfig
 
@@ -23,7 +24,8 @@ class NotDiamondRunnable(Runnable[LanguageModelInput, str]):
     def _model_select(self, input: List[LanguageModelInput]) -> str:
         messages = _convert_input_to_message_dicts(input)
         _, provider = self.client.chat.completions.model_select(messages=messages)
-        return provider
+        provider_str = _nd_provider_to_langchain_provider(str(provider))
+        return provider_str
 
     def invoke(self, input: List[LanguageModelInput]) -> str:
         return self._model_select(input)
@@ -52,4 +54,8 @@ def _convert_input_to_message_dicts(input: LanguageModelInput) -> List[Dict[str,
         for message in output.to_messages()
     ]
 
-
+def _nd_provider_to_langchain_provider(llm_config_str: str) -> str:
+    return (
+        llm_config_str
+        .replace("google", "google_genai")
+    )
