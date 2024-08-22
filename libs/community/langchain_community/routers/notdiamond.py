@@ -1,14 +1,14 @@
 import os
 from typing import Any, AsyncIterator, Dict, Iterator, List, Sequence
 
-import notdiamond as nd
 from langchain.chat_models.base import init_chat_model
+from langchain_community.adapters.openai import convert_message_to_dict
 from langchain_core.language_models import LanguageModelInput
 from langchain_core.messages.utils import convert_to_messages
 from langchain_core.prompt_values import ChatPromptValue, PromptValue, StringPromptValue
 from langchain_core.runnables import Runnable, RunnableConfig
 
-from langchain_community.adapters.openai import convert_message_to_dict
+import notdiamond as nd
 
 
 class NotDiamondRunnable(Runnable[LanguageModelInput, str]):
@@ -26,10 +26,11 @@ class NotDiamondRunnable(Runnable[LanguageModelInput, str]):
         llm_configs: List[nd.LLMConfig | str],
         api_key: str | None,
         default_model: str | None = None,
+        client: nd.NotDiamond | None = None,
     ):
         if api_key:
             self.api_key = api_key
-        self.client = nd.NotDiamond(
+        self.client = client or nd.NotDiamond(
             llm_configs=llm_configs, api_key=self.api_key, default=default_model
         )
 
@@ -100,10 +101,11 @@ class NotDiamondRoutedRunnable(Runnable[LanguageModelInput, Any]):
         api_key: str | None = os.getenv("NOTDIAMOND_API_KEY"),
         default_model: str | None = None,
         configurable_fields: List[str] | None = None,
+        client: nd.NotDiamond | None = None,
         *args: Any | None,
         **kwargs: Any | None,
     ):
-        self._ndrunnable = NotDiamondRunnable(llm_configs, api_key, default_model)
+        self._ndrunnable = NotDiamondRunnable(llm_configs, api_key, default_model, client)
 
         _routed_fields = ["model", "model_provider"]
         if configurable_fields is None:
@@ -200,15 +202,16 @@ class NotDiamondRoutedRunnable(Runnable[LanguageModelInput, Any]):
     def _build_model_config(
         self, provider_str: str, config: RunnableConfig | None = None
     ) -> RunnableConfig:
+        """
+        Provider string should take the form '{model}/{model_provider}'
+        """
         config = config or RunnableConfig()
 
-        _nd_llm_config = nd.LLMConfig.from_string(
-            _nd_provider_to_langchain_provider(provider_str)
-        )
+        model_provider, model = provider_str.split("/")
         _config = RunnableConfig(
             configurable={
-                "nd_model": _nd_llm_config.model,
-                "nd_model_provider": _nd_llm_config.model_provider,
+                "nd_model": model,
+                "nd_model_provider": model_provider,
             },
         )
 
