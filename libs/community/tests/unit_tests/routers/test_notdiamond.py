@@ -61,7 +61,7 @@ class TestNotDiamondRunnables:
 
 class TestNotDiamondRoutedRunnable:
 
-    def test_invoke(self, not_diamond_routed_runnable, llm_config_to_chat_model):
+    def test_invoke(self, not_diamond_routed_runnable):
         not_diamond_routed_runnable.invoke('Hello, world!')
         assert not_diamond_routed_runnable._configurable_model.invoke.called, f"{not_diamond_routed_runnable._configurable_model}"
 
@@ -71,12 +71,13 @@ class TestNotDiamondRoutedRunnable:
         args, kwargs = call_list[0]
         assert args[0] == 'Hello, world!'
 
-    def test_stream(self, not_diamond_routed_runnable, llm_config_to_chat_model):
+
+    def test_stream(self, not_diamond_routed_runnable):
         for result in not_diamond_routed_runnable.stream('Hello, world!'):
             assert result is not None
         assert not_diamond_routed_runnable._configurable_model.stream.called, f"{not_diamond_routed_runnable._configurable_model}"
 
-    def test_batch(self, not_diamond_routed_runnable, llm_config_to_chat_model):
+    def test_batch(self, not_diamond_routed_runnable):
         not_diamond_routed_runnable.batch(['Hello, world!', 'How are you today?'])
         assert not_diamond_routed_runnable._configurable_model.batch.called, f"{not_diamond_routed_runnable._configurable_model}"
 
@@ -87,7 +88,7 @@ class TestNotDiamondRoutedRunnable:
         assert args[0] == ['Hello, world!', 'How are you today?']
 
     @pytest.mark.asyncio
-    async def test_ainvoke(self, not_diamond_routed_runnable, llm_config_to_chat_model):
+    async def test_ainvoke(self, not_diamond_routed_runnable):
         await not_diamond_routed_runnable.ainvoke('Hello, world!')
         assert not_diamond_routed_runnable._configurable_model.ainvoke.called, f"{not_diamond_routed_runnable._configurable_model}"
 
@@ -98,13 +99,13 @@ class TestNotDiamondRoutedRunnable:
         assert args[0] == 'Hello, world!'
 
     @pytest.mark.asyncio
-    async def test_astream(self, not_diamond_routed_runnable, llm_config_to_chat_model):
+    async def test_astream(self, not_diamond_routed_runnable):
         async for result in not_diamond_routed_runnable.astream('Hello, world!'):
             assert result is not None
         assert not_diamond_routed_runnable._configurable_model.astream.called, f"{not_diamond_routed_runnable._configurable_model}"
 
     @pytest.mark.asyncio
-    async def test_abatch(self, not_diamond_routed_runnable, llm_config_to_chat_model):
+    async def test_abatch(self, not_diamond_routed_runnable):
         await not_diamond_routed_runnable.abatch(['Hello, world!', 'How are you today?'])
         assert not_diamond_routed_runnable._configurable_model.abatch.called
 
