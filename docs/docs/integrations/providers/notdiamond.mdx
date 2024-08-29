@@ -1,0 +1,41 @@
+# Not Diamond
+
+[Not Diamond](https://notdiamond.ai) offers an AI-powered model router that automatically determines which LLM is best suited to respond to any query,
+improving LLM output quality by combining multiple LLMs into a **meta-model** that learns when to call each LLM.
+
+Not Diamond supports cost and latency tradeoffs, customized router training, and real-time router personalization. Learn more via [the documentation](https://notdiamond.readme.io/).
+
+## Installation
+
+```shell
+pip install langchain notdiamond
+```
+
+## Configuration
+
+- API keys: You need API keys from [Not Diamond](https://app.notdiamond.ai/keys) and any LLM you want to use.
+
+## Quick Start
+
+Not Diamond offers `NotDiamondRoutedRunnable`, allowing you to include routing within your chain.
+
+```python
+from langchain_community.utilities.notdiamond import NotDiamondRoutedRunnable
+
+from notdiamond import NotDiamond, LLMConfig
+
+nd_client = NotDiamond(
+    llm_configs=[LLMConfig("openai", "gpt-4o"), LLMConfig("openai", "gpt-4o-mini")],
+    api_key=os.getenv("NOTDIAMOND_API_KEY"),
+    default=LLMConfig("openai", "gpt-3.5-turbo"),
+)
+
+nd_runnable = NotDiamondRoutedRunnable(nd_client=nd_client)
+# or: chain = nd_runnable | other_runnable | third_runnable
+
+nd_runnable.invoke("Hello there! Not Diamond sent me to you. Which OpenAI model are you?")
+```
+
+```
+content="Hello! I'm based on OpenAI's GPT-3 model. How can I assist you today?" additional_kwargs=....
+```
