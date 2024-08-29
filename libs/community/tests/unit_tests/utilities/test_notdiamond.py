@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, AsyncMock
 
 from langchain.chat_models.base import _ConfigurableModel
 from langchain_core.language_models import BaseChatModel
-from libs.community.langchain_community.utilities.notdiamond import NotDiamondRunnable, NotDiamondRoutedRunnable, _nd_provider_to_langchain_provider
+from langchain_community.utilities.notdiamond import NotDiamondRunnable, NotDiamondRoutedRunnable, _nd_provider_to_langchain_provider
 
 from notdiamond import LLMConfig, NotDiamond
 
@@ -31,24 +31,24 @@ def llm_config_to_chat_model() -> Dict[str, BaseChatModel]:
 
 @pytest.fixture
 def nd_client(llm_configs):
-    client = MagicMock(spec=NotDiamond, llm_configs=llm_configs)
+    client = MagicMock(spec=NotDiamond, llm_configs=llm_configs, api_key='', default='openai/gpt-4o')
     selected_model = random.choice(llm_configs)
     client.chat.completions.model_select = MagicMock(return_value=(uuid.uuid4(), selected_model))
     client.chat.completions.amodel_select = AsyncMock(return_value=(uuid.uuid4(), selected_model))
     return client
 
 @pytest.fixture
-def not_diamond_runnable(llm_configs, nd_client):
-    return NotDiamondRunnable(llm_configs=llm_configs, api_key='', default_model='openai/gpt-4o', client=nd_client)
+def not_diamond_runnable(nd_client):
+    return NotDiamondRunnable(nd_client=nd_client)
 
 @pytest.fixture
-def not_diamond_routed_runnable(llm_configs, nd_client):
-    routed_runnable = NotDiamondRoutedRunnable(llm_configs=llm_configs, api_key='', default_model='openai/gpt-4o', client=nd_client)
+def not_diamond_routed_runnable(nd_client):
+    routed_runnable = NotDiamondRoutedRunnable(nd_client=nd_client)
     routed_runnable._configurable_model = MagicMock(spec=_ConfigurableModel)
     return routed_runnable
 
 @pytest.mark.requires("notdiamond")
-class TestNotDiamondRunnables:
+class TestNotDiamondRunnable:
 
     def test_model_select(self, not_diamond_runnable, llm_configs):
         actual_select = not_diamond_runnable._model_select('Hello, world!')

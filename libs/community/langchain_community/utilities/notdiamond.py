@@ -1,3 +1,4 @@
+from importlib import metadata
 import os
 from typing import Any, AsyncIterator, Dict, Iterator, List, Sequence
 
@@ -8,8 +9,8 @@ from langchain_core.messages.utils import convert_to_messages
 from langchain_core.prompt_values import ChatPromptValue, PromptValue, StringPromptValue
 from langchain_core.runnables import Runnable, RunnableConfig
 
-import libs.community.langchain_community.utilities.notdiamond as nd
-
+import notdiamond as nd
+_USER_AGENT = f"langchain-community/{metadata.version('notdiamond')}"
 
 class NotDiamondRunnable(Runnable[LanguageModelInput, str]):
     """
@@ -23,19 +24,25 @@ class NotDiamondRunnable(Runnable[LanguageModelInput, str]):
 
     def __init__(
         self,
-        llm_configs: List[nd.LLMConfig | str],
-        api_key: str | None,
-        default_model: str | None = None,
-        client: nd.NotDiamond | None = None,
+        nd_llm_configs: List[nd.LLMConfig | str] | None = None,
+        nd_api_key: str | None = None,
+        nd_client: nd.NotDiamond | None = None,
     ):
-        if not client:
-            if not api_key:
-                raise ValueError("Must provide either client or api_key to instantiate NotDiamondRunnable.")
-            client = nd.NotDiamond(
-                llm_configs=llm_configs, api_key=api_key, default=default_model
+        if not nd_client:
+            if not nd_api_key or not nd_llm_configs:
+                raise ValueError("Must provide either client or api_key and llm_configs to instantiate NotDiamondRunnable.")
+            nd_client = nd.NotDiamond(
+                llm_configs=nd_llm_configs, api_key=nd_api_key,
             )
-        self.client = client
-        self.api_key = client.api_key
+
+        try:
+            nd_client.user_agent = _USER_AGENT
+        except AttributeError:
+            pass
+
+        self.client = nd_client
+        self.api_key = nd_client.api_key
+        self.llm_configs = nd_llm_configs
 
     def _model_select(self, input: LanguageModelInput) -> str:
         messages = _convert_input_to_message_dicts(input)
@@ -100,15 +107,15 @@ class NotDiamondRunnable(Runnable[LanguageModelInput, str]):
 class NotDiamondRoutedRunnable(Runnable[LanguageModelInput, Any]):
     def __init__(
         self,
-        llm_configs: List[nd.LLMConfig | str],
-        api_key: str | None = os.getenv("NOTDIAMOND_API_KEY"),
-        default_model: str | None = None,
+        *args,
         configurable_fields: List[str] | None = None,
-        client: nd.NotDiamond | None = None,
-        *args: Any | None,
+        nd_llm_configs: List[nd.LLMConfig | str] | None = None,
+        nd_api_key: str | None = None,
+        nd_client: nd.NotDiamond | None = None,
         **kwargs: Any | None,
     ):
-        self._ndrunnable = NotDiamondRunnable(llm_configs, api_key, default_model, client)
+        self._ndrunnable = NotDiamondRunnable(*args, **kwargs, nd_api_key=nd_api_key, nd_llm_configs=nd_llm_configs, nd_client=nd_client)
+        _nd_kwargs = {kw for kw in kwargs.keys() if kw.startswith("nd_")}
 
         _routed_fields = ["model", "model_provider"]
         if configurable_fields is None:
@@ -118,7 +125,7 @@ class NotDiamondRoutedRunnable(Runnable[LanguageModelInput, Any]):
             configurable_fields=self._configurable_fields,
             config_prefix="nd",
             *args,
-            **kwargs,
+            **{kw: kwv for kw, kwv in kwargs.items() if kw not in _nd_kwargs},
         )
 
     def stream(
