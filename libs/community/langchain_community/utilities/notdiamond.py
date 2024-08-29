@@ -28,11 +28,14 @@ class NotDiamondRunnable(Runnable[LanguageModelInput, str]):
         default_model: str | None = None,
         client: nd.NotDiamond | None = None,
     ):
-        if api_key:
-            self.api_key = api_key
-        self.client = client or nd.NotDiamond(
-            llm_configs=llm_configs, api_key=self.api_key, default=default_model
-        )
+        if not client:
+            if not api_key:
+                raise ValueError("Must provide either client or api_key to instantiate NotDiamondRunnable.")
+            client = nd.NotDiamond(
+                llm_configs=llm_configs, api_key=api_key, default=default_model
+            )
+        self.client = client
+        self.api_key = client.api_key
 
     def _model_select(self, input: LanguageModelInput) -> str:
         messages = _convert_input_to_message_dicts(input)
