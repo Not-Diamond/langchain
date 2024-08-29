@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, AsyncMock
 
 from langchain.chat_models.base import _ConfigurableModel
 from langchain_core.language_models import BaseChatModel
-from langchain_community.routers.notdiamond import NotDiamondRunnable, NotDiamondRoutedRunnable, _nd_provider_to_langchain_provider
+from libs.community.langchain_community.utilities.notdiamond import NotDiamondRunnable, NotDiamondRoutedRunnable, _nd_provider_to_langchain_provider
 
 from notdiamond import LLMConfig, NotDiamond
 

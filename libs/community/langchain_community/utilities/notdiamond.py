@@ -8,7 +8,7 @@ from langchain_core.messages.utils import convert_to_messages
 from langchain_core.prompt_values import ChatPromptValue, PromptValue, StringPromptValue
 from langchain_core.runnables import Runnable, RunnableConfig
 
-import notdiamond as nd
+import libs.community.langchain_community.utilities.notdiamond as nd
 
 
 class NotDiamondRunnable(Runnable[LanguageModelInput, str]):
