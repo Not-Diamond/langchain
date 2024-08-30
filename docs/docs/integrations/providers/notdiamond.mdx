@@ -3,7 +3,10 @@
 [Not Diamond](https://notdiamond.ai) offers an AI model router that automatically determines which LLM is best suited to respond to any query,
 improving LLM output quality by combining multiple LLMs into a **meta-model** that learns when to call each LLM.
 
-Not Diamond supports cost and latency tradeoffs, customized router training, and real-time router personalization. Learn more via [the documentation](https://notdiamond.readme.io/).
+Not Diamond supports cost and latency tradeoffs, customized router training, and real-time router personalization.
+Not Diamond also supports many - but not all - models supported by Langchain. See [here][supported] for details.
+
+Learn more via [the documentation][docs].
 
 ## Installation
 
@@ -13,61 +16,71 @@ pip install langchain notdiamond
 
 ## Configuration
 
-- API keys: You need API keys from [Not Diamond](https://app.notdiamond.ai/keys) and any LLM you want to use.
+- API keys: You need API keys from [Not Diamond](api-keys) and any LLM you want to use.
 
 ## Quick Start
+
+Set up your Python environment with a client and prompt:
+
+```python
+from langchain_community.utilities.notdiamond import NotDiamondRunnable, NotDiamondRoutedRunnable
+
+prompt = "Hello there! Please summarize this webpage. https://www.poetryfoundation.org/poems/46565/ozymandias"
+```
 
 ### Router recommendations with `NotDiamondRunnable`
 
 First, Not Diamond offers `NotDiamondRunnable`, which recommends a model for the given prompt or chain.
 
 ```python
-from langchain_community.utilities.notdiamond import NotDiamondRoutedRunnable
-from notdiamond import NotDiamond, LLMConfig
-
-nd_client = NotDiamond(
-    llm_configs=[LLMConfig("openai", "gpt-4o"), LLMConfig("openai", "gpt-4o-mini")],
-    api_key=os.getenv("NOTDIAMOND_API_KEY"),
-    default=LLMConfig("openai", "gpt-4o"),
+nd_runnable = NotDiamondRunnable(
+    nd_api_key="sk-...", nd_llm_configs=["openai/gpt-4o", "openai/gpt-4o-mini"]
 )
-prompt = "Hello there! Please summarize this webpage. https://www.poetryfoundation.org/poems/46565/ozymandias"
-
-nd_runnable = NotDiamondRunnable(nd_client=nd_client)
 print(nd_runnable.model_select(prompt))
 ```
+
+The recommendation is returned as a string, allowing you to apply business logic as needed:
 
 ```python
 "openai/gpt-4o"
 ```
 
-You can then apply business logic to this recommendation as needed.
-
 ### Auto-routing with `NotDiamondRoutedRunnable`
 
-Not Diamond also offers `NotDiamondRoutedRunnable`, allowing you to dynamically route your chain.
+Not Diamond also offers `NotDiamondRoutedRunnable` which instead dynamically routes the input as part of a chain.
 
 ```python
-from langchain_community.utilities.notdiamond import NotDiamondRoutedRunnable
-
-from notdiamond import NotDiamond, LLMConfig
-
-nd_client = NotDiamond(
-    llm_configs=[LLMConfig("openai", "gpt-4o"), LLMConfig("openai", "gpt-4o-mini")],
-    api_key=os.getenv("NOTDIAMOND_API_KEY"),
-    default=LLMConfig("openai", "gpt-4o"),
+nd_routed_runnable = NotDiamondRoutedRunnable(
+    nd_api_key="sk-...", nd_llm_configs=["openai/gpt-4o", "openai/gpt-4o-mini"]
 )
-prompt = "Hello there! Please summarize this webpage. https://www.poetryfoundation.org/poems/46565/ozymandias"
-
-nd_routed_runnable = NotDiamondRoutedRunnable(nd_client=nd_client)
 print(nd_runnable.invoke(prompt))
 
 # or: chain = nd_routed_runnable | other_runnable | third_runnable
-# or: chain.invoke(prompt)
+#     chain.invoke(prompt)
 ```
 
-This `Runnable` will directly invoke the model recommended by Not Diamond:
+This will directly invoke the model recommended by Not Diamond:
 
 ```
 # ND selected gpt-4o for this prompt
 content="Sure! Here's a summary of the webpage featuring Percy Bysshe Shelley's poem "Ozymandias" on the Poetry Foundation website:" additional_kwargs=....
 ```
+
+### Configuring a `NotDiamond` client
+
+Both of these runnables also accept a configured `NotDiamond` client:
+
+```python
+nd_client = NotDiamond(
+    llm_configs=[LLMConfig("openai", "gpt-4o"), LLMConfig("openai", "gpt-4o-mini")],
+    api_key=os.getenv("NOTDIAMOND_API_KEY"),
+    default=LLMConfig("openai", "gpt-4o"),
+    max_model_depth=1,
+)
+nd_runnable = NotDiamondRunnable(nd_client=nd_client)
+nd_routed_runnable = NotDiamondRoutedRunnable(nd_client=nd_client)
+```
+
+[docs]: https://notdiamond.readme.io/
+[api-keys]: https://app.notdiamond.ai/keys
+[supported]: https://notdiamond.readme.io/docs/llm-models
