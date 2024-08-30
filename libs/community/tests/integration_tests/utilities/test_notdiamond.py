@@ -16,7 +16,7 @@ def nd_routed_runnable():
         LLMConfig(provider="openai", model="gpt-4o-2024-08-06"),
         LLMConfig(provider="openai", model="gpt-4o-mini-2024-07-18")
     ]
-    nd_client = NotDiamond(api_key=api_key, llm_configs=llm_configs, default='openai/gpt-3.5-turbo')
+    nd_client = NotDiamond(api_key=api_key, llm_configs=llm_configs, default='openai/gpt-4o-mini-2024-07-18')
     return NotDiamondRoutedRunnable(nd_client=nd_client)
 
 def test_notdiamond_routed_runnable(nd_routed_runnable):
