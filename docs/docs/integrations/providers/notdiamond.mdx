@@ -16,7 +16,7 @@ pip install langchain notdiamond
 
 ## Configuration
 
-- API keys: You need API keys from [Not Diamond](api-keys) and any LLM you want to use.
+- API keys: You need an API key from [Not Diamond](api-keys) as well as any LLM you want to use.
 
 ## Quick Start
 
@@ -75,7 +75,6 @@ nd_client = NotDiamond(
     llm_configs=[LLMConfig("openai", "gpt-4o"), LLMConfig("openai", "gpt-4o-mini")],
     api_key=os.getenv("NOTDIAMOND_API_KEY"),
     default=LLMConfig("openai", "gpt-4o"),
-    max_model_depth=1,
     tradeoff="cost",
     ...
 )
