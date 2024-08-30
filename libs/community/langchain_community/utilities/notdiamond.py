@@ -10,7 +10,17 @@ from langchain_core.prompt_values import ChatPromptValue, PromptValue, StringPro
 from langchain_core.runnables import Runnable, RunnableConfig
 
 import notdiamond as nd
+
 _USER_AGENT = f"langchain-community/{metadata.version('notdiamond')}"
+_LANGCHAIN_PROVIDERS = {
+    "openai",
+    "anthropic",
+    "google",
+    "mistral",
+    "togetherai",
+    "cohere",
+}
+
 
 class NotDiamondRunnable(Runnable[LanguageModelInput, str]):
     """
@@ -30,10 +40,22 @@ class NotDiamondRunnable(Runnable[LanguageModelInput, str]):
     ):
         if not nd_client:
             if not nd_api_key or not nd_llm_configs:
-                raise ValueError("Must provide either client or api_key and llm_configs to instantiate NotDiamondRunnable.")
+                raise ValueError(
+                    "Must provide either client or api_key and llm_configs to instantiate NotDiamondRunnable."
+                )
             nd_client = nd.NotDiamond(
-                llm_configs=nd_llm_configs, api_key=nd_api_key,
+                llm_configs=nd_llm_configs,
+                api_key=nd_api_key,
             )
+
+        for llm_config in nd_client.llm_configs:
+            if isinstance(llm_config, str):
+                llm_config = nd.LLMConfig.from_string(llm_config)
+            if llm_config.provider not in _LANGCHAIN_PROVIDERS:
+                raise ValueError(
+                    f"Requested provider in {llm_config} supported by Not Diamond but not "
+                    "langchain.chat_models.base.init_chat_model. Please remove it from your llm_configs."
+                )
 
         try:
             nd_client.user_agent = _USER_AGENT
@@ -114,7 +136,13 @@ class NotDiamondRoutedRunnable(Runnable[LanguageModelInput, Any]):
         nd_client: nd.NotDiamond | None = None,
         **kwargs: Any | None,
     ):
-        self._ndrunnable = NotDiamondRunnable(*args, **kwargs, nd_api_key=nd_api_key, nd_llm_configs=nd_llm_configs, nd_client=nd_client)
+        self._ndrunnable = NotDiamondRunnable(
+            *args,
+            **kwargs,
+            nd_api_key=nd_api_key,
+            nd_llm_configs=nd_llm_configs,
+            nd_client=nd_client,
+        )
         _nd_kwargs = {kw for kw in kwargs.keys() if kw.startswith("nd_")}
 
         _routed_fields = ["model", "model_provider"]
@@ -246,4 +274,10 @@ def _convert_input_to_message_dicts(input: LanguageModelInput) -> List[Dict[str,
 
 
 def _nd_provider_to_langchain_provider(llm_config_str: str) -> str:
-    return llm_config_str.replace("google", "google_genai")
+    provider, model = llm_config_str.split("/")
+    provider = (
+        provider.replace("google", "google_genai")
+        .replace("mistral", "mistralai")
+        .replace("togetherai", "together")
+    )
+    return f"{provider}/{model}"
