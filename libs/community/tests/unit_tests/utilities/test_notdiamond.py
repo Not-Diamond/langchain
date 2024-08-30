@@ -161,7 +161,6 @@ class TestNotDiamondRoutedRunnable:
         mock_client = MagicMock(spec=cls)
 
         with patch(patch_class, autospec=True) as mock_class:
-            mock_client = MagicMock(spec=cls)
             mock_class.return_value = mock_client
             runnable = NotDiamondRoutedRunnable(nd_client=nd_client)
             runnable.invoke("Test prompt")
@@ -170,7 +169,6 @@ class TestNotDiamondRoutedRunnable:
         mock_client.reset_mock()
 
         with patch(patch_class, autospec=True) as mock_class:
-            mock_client = MagicMock(spec=cls)
             mock_class.return_value = mock_client
             runnable = NotDiamondRoutedRunnable(nd_api_key='sk-...', nd_llm_configs=[target_model])
             runnable.invoke("Test prompt")
