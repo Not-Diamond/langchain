@@ -158,6 +158,7 @@ class TestNotDiamondRoutedRunnable:
 
         module_name, cls_name = patch_class.split('.')
         cls = getattr(import_module(module_name), cls_name)
+        mock_client = MagicMock(spec=cls)
 
         with patch(patch_class, autospec=True) as mock_class:
             mock_client = MagicMock(spec=cls)
@@ -165,6 +166,8 @@ class TestNotDiamondRoutedRunnable:
             runnable = NotDiamondRoutedRunnable(nd_client=nd_client)
             runnable.invoke("Test prompt")
             assert mock_client.invoke.called
+
+        mock_client.reset_mock()
 
         with patch(patch_class, autospec=True) as mock_class:
             mock_client = MagicMock(spec=cls)

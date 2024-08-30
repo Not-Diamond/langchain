@@ -25,7 +25,7 @@ Set up your Python environment with a client and prompt:
 ```python
 from langchain_community.utilities.notdiamond import NotDiamondRunnable, NotDiamondRoutedRunnable
 
-prompt = "Hello there! Please summarize this webpage. https://www.poetryfoundation.org/poems/46565/ozymandias"
+prompt = "Try to convert Ozymandias by Percy Bysshe Shelley to a haiku."
 ```
 
 ### Router recommendations with `NotDiamondRunnable`
@@ -63,7 +63,7 @@ This will directly invoke the model recommended by Not Diamond:
 
 ```
 # ND selected gpt-4o for this prompt
-content="Sure! Here's a summary of the webpage featuring Percy Bysshe Shelley's poem "Ozymandias" on the Poetry Foundation website:" additional_kwargs=....
+content="Ancient king’s great fall, Desert sands reclaim his pride, Time erases all." additional_kwargs=....
 ```
 
 ### Configuring a `NotDiamond` client
@@ -76,9 +76,19 @@ nd_client = NotDiamond(
     api_key=os.getenv("NOTDIAMOND_API_KEY"),
     default=LLMConfig("openai", "gpt-4o"),
     max_model_depth=1,
+    tradeoff="cost",
+    ...
 )
-nd_runnable = NotDiamondRunnable(nd_client=nd_client)
 nd_routed_runnable = NotDiamondRoutedRunnable(nd_client=nd_client)
+print(nd_routed_runnable.invoke("What is 2+2?"))
+```
+
+The router identifies the simplicity of this query and trades off cost for accuracy by selecting
+a cheaper model:
+
+```
+# ND routed to gpt-4o-mini
+content="2 + 2 equals 4." additional_kwargs=...
 ```
 
 [docs]: https://notdiamond.readme.io/

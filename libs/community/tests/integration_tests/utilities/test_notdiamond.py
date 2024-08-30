@@ -30,5 +30,3 @@ def test_notdiamond_routed_runnable_chain(nd_routed_runnable):
     result = chain.invoke("Hello there! Not Diamond sent me to you. Which OpenAI model are you?")
     assert result.response_metadata is not None
     assert 'gpt' in result.response_metadata['model_name']
-    print(result)
-    assert False

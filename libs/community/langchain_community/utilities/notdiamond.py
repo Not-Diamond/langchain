@@ -70,6 +70,7 @@ class NotDiamondRunnable(Runnable[LanguageModelInput, str]):
         messages = _convert_input_to_message_dicts(input)
         _, provider = self.client.chat.completions.model_select(messages=messages)
         provider_str = _nd_provider_to_langchain_provider(str(provider))
+        print(provider_str)
         return provider_str
 
     async def _amodel_select(self, input: LanguageModelInput) -> str:
